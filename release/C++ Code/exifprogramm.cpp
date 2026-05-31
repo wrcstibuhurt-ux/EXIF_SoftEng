@@ -5,9 +5,20 @@
 #include <algorithm>
 #include <fstream>
 #include <filesystem>
+#include <filesystem>
+
+#include <curl/curl.h>
+#include <nlohmann/json.hpp>
+#include <cstdlib>
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 
 using namespace std;
 namespace fs = std::filesystem;
+using json  = nlohmann::json;
 
 string createEditableCopy(const string& originalPath) {
 
@@ -48,6 +59,178 @@ string removeQuotes(string text) {
     return text;
 }
 
+size_t writeCallback(
+    void* contents,
+    size_t size,
+    size_t nmemb,
+    string* output
+) {
+    output->append((char*)contents, size * nmemb);
+    return size * nmemb;
+}
+
+#ifdef _WIN32
+
+void printUtf8(const string& text) {
+
+    int wideSize = MultiByteToWideChar(
+        CP_UTF8,
+        0,
+        text.c_str(),
+        -1,
+        NULL,
+        0
+    );
+
+    wstring wideText(wideSize, 0);
+
+    MultiByteToWideChar(
+        CP_UTF8,
+        0,
+        text.c_str(),
+        -1,
+        &wideText[0],
+        wideSize
+    );
+
+    DWORD written;
+
+    WriteConsoleW(
+        GetStdHandle(STD_OUTPUT_HANDLE),
+        wideText.c_str(),
+        wideSize - 1,
+        &written,
+        NULL
+    );
+}
+
+#endif
+
+string translateWithDeepL(const string& text) {
+
+    static map<string, string> cache;
+
+    // keine doppelten Übersetzungen
+    if (cache.find(text) != cache.end()) {
+        return cache[text];
+    }
+
+    const char* apiKey = getenv("DEEPL_API_KEY");
+
+    // Falls kein API-Key gesetzt ist
+    if (!apiKey) {
+        cout << "[DeepL Fehler] API Key nicht gefunden.\n";
+        return text;
+    }
+    else {
+        cout << "[DeepL] API Key gefunden.\n";
+    }
+
+    CURL* curl = curl_easy_init();
+
+    if (!curl) {
+        return text;
+    }
+
+    string response;
+
+    curl_easy_setopt(
+        curl,
+        CURLOPT_URL,
+        "https://api-free.deepl.com/v2/translate"
+    );
+
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+
+    curl_easy_setopt(
+        curl,
+        CURLOPT_WRITEFUNCTION,
+        writeCallback
+    );
+
+    curl_easy_setopt(
+        curl,
+        CURLOPT_WRITEDATA,
+        &response
+    );
+
+    struct curl_slist* headers = NULL;
+
+    string authHeader =
+        "Authorization: DeepL-Auth-Key " +
+        string(apiKey);
+
+    headers = curl_slist_append(
+        headers,
+        authHeader.c_str()
+    );
+
+    headers = curl_slist_append(
+        headers,
+        "Content-Type: application/x-www-form-urlencoded"
+    );
+
+    curl_easy_setopt(
+        curl,
+        CURLOPT_HTTPHEADER,
+        headers
+    );
+
+    char* escapedText =
+        curl_easy_escape(
+            curl,
+            text.c_str(),
+            text.length()
+        );
+
+    string postData =
+        "text=" + string(escapedText) +
+        "&source_lang=EN" +
+        "&target_lang=DE";
+        "&tag_handling=html";
+
+    curl_easy_setopt(
+        curl,
+        CURLOPT_POSTFIELDS,
+        postData.c_str()
+    );
+
+    CURLcode res = curl_easy_perform(curl);
+
+    long httpCode = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpCode);
+
+    curl_free(escapedText);
+
+    curl_slist_free_all(headers);
+
+    curl_easy_cleanup(curl);
+
+    if (res != CURLE_OK) {
+        cout << "[DeepL Fehler] "
+             << curl_easy_strerror(res)
+            << "\n";
+        return text;
+    }
+
+    try {
+
+        json result = json::parse(response);
+
+        string translated =
+            result["translations"][0]["text"];
+
+        cache[text] = translated;
+
+        return translated;
+    }
+    catch (...) {
+
+        return text;
+    }
+}
+
 //*Datenausgabe
 void printExifData(
     const Exiv2::ExifData& exifData,
@@ -70,10 +253,29 @@ void printExifData(
         }
         else {
 
-            cout << key
-                 << " = "
-                 << value
-                 << "\n";
+            string translated =
+                translateWithDeepL(entry.tagLabel());
+
+            #ifdef _WIN32
+
+                printUtf8(translated);
+
+                cout << " ("
+                     << key
+                     << ") = "
+                     << value
+                     << "\n";
+
+            #else
+
+                cout << translated
+                     << " ("
+                     << key
+                     << ") = "
+                     << value
+                     << "\n";
+
+            #endif
         }
     }
 }
@@ -190,6 +392,11 @@ void exportExifToFile(
 
 //!Hauptfunktion
 int main() {
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 while (true) { //*Schleife über gesamte Programm
     
     string filename;

@@ -10,6 +10,7 @@
                 "-o",
                 "${fileDirname}\\${fileBasenameNoExtension}.exe",
                 "-lexiv2"
+                "-lcurl"
             ],
             "options": {
                 "cwd": "${fileDirname}"

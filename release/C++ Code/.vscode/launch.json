@@ -8,8 +8,8 @@
       "args": [],
       "stopAtEntry": false,
       "externalConsole": true,
-      "cwd": "d:/THAB/Soft Eng/release_V3/release/C++ Code",
-      "program": "d:/THAB/Soft Eng/release_V3/release/C++ Code/build/Debug/outDebug",
+      "cwd": "d:/THAB/Soft Eng/release_V5/release/C++ Code",
+      "program": "d:/THAB/Soft Eng/release_V5/release/C++ Code/build/Debug/outDebug",
       "MIMode": "gdb",
       "miDebuggerPath": "gdb",
       "setupCommands": [
