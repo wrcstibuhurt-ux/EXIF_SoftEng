@@ -194,11 +194,26 @@ int main() {
 
         while(true){ //*Schleife über Datei bearbeitung
             cout << "\nBefehl eingeben:\n";
-            cout << "lesen / schreiben / loeschen / export / zuruck / exit\n";
+            cout << "lesen (L) / schreiben (S) / loeschen (D)\n";
+            cout << "export (E) / zuruck (Z) / exit (X)\n";
 
             getline(cin, command);
             command = toLower(command); //Prüft eingegebenen Text auf Großbuchstaben
-                
+
+// Abkürzungen auf vollständige Befehle übersetzen
+            if (command == "l")
+                command = "lesen";
+            else if (command == "s")
+                command = "schreiben";
+            else if (command == "d")
+                command = "loeschen";
+            else if (command == "e")
+                command = "export";
+            else if (command == "z")
+                command = "zuruck";
+            else if (command == "x")
+                command = "exit";
+            
             if (command == "zuruck") //Gang zurück zum Datei Auswahl
                 break;
 
